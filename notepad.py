@@ -21,6 +21,7 @@ class NotePad():
         self.window.title('Text editor')
         self.window.rowconfigure(1, weight=1)
         self.window.columnconfigure(0, weight=1)
+        self.window.configure(bg=APP_SETTINGS['bg_color'])
 
         #--- Loads recent files
         try:
@@ -30,22 +31,35 @@ class NotePad():
             self.recent_files = []
 
         #--- Text edit parameters 
+        self.scrollbar = tk.Scrollbar(self.window)
         self.text_edit = tk.Text(self.window,
         font=(APP_SETTINGS['font_family'], APP_SETTINGS['font_size']),
         bg=APP_SETTINGS['bg_color'], 
         fg=APP_SETTINGS['font_color'],
-        insertbackground = APP_SETTINGS['font_color']
+        insertbackground = APP_SETTINGS['font_color'],
 
+                    # --- Terminal specific additions ---
+        blockcursor=True,  # Changes the thin cursor line to a solid block
+        relief=tk.FLAT,    # Removes the default 3D sunken border around the text box
+        padx=10,           # Adds internal padding so text doesn't touch the window edge
+        pady=10,
+    
+        yscrollcommand=self.scrollbar.set
         )
+
+        self.scrollbar.config(command=self.text_edit.yview)
         self.text_edit.grid(row=1, column=0, sticky='nsew')
-            
+        self.scrollbar.grid(row=1, column=1, sticky='ns')
         self.filepath = None
         self.menu_bar()
-        self.menu_buttons()
 
+        self.window.bind('<Control-s>', lambda x: self.save_file())
+        self.window.bind('<Control-o>', lambda x: self.open_file())
+            
+        self.window.mainloop()
 
     def menu_buttons(self):
-        frame = tk.Frame(self.window, relief=tk.RAISED, bd=2)
+        frame = tk.Frame(self.window, relief=tk.FLAT, bd=2)
         save_button = tk.Button(frame, text='Save', command= self.save_file)
         open_button = tk.Button(frame, text='Open', command= self.open_file)
         new_button = tk.Button(frame, text='New', command= self.new_file)
@@ -58,6 +72,12 @@ class NotePad():
         close_button.grid(row=0, column=3, padx=5, sticky='ew')
             
         frame.grid(row=0, column=0, sticky='ew')
+
+        self.scrollbar.config(command=self.text_edit.yview)
+        self.text_edit.grid(row=1, column=0, sticky='nsew')
+        self.scrollbar.grid(row=1, column=1, sticky='ns')
+        self.filepath = None
+        self.menu_bar()
 
         self.window.bind('<Control-s>', lambda x: self.save_file())
         self.window.bind('<Control-o>', lambda x: self.open_file())
@@ -78,7 +98,9 @@ class NotePad():
         self.menu_file.add_command(label='New', command= self.new_file)
         self.menu_file.add_command(label='Open', command= self.open_file)
         self.menu_file.add_command(label='Close', command= self.close_file)
-
+        self.menu_file.add_command(label='Save', command= self.save_file)
+        self.menu_file.add_command(label='Save As...', command= self.save_as)
+        
 
 
         for f in self.recent_files:
