@@ -3,3 +3,4 @@ build/
 *.spec
 __pycache__/
 recent_files.json
+.DS_Store
