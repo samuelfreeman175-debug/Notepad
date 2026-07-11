@@ -5,7 +5,7 @@ import os
 import json
 
 APP_SETTINGS = {
-    "font_family": "Liberation Mono",
+    "font_family": "Fixedsys",
     "font_size": 12,
     "bg_color": "#000000", # Black
     "font_color": "#FFFFFF" # White
