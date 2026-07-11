@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter.filedialog import askopenfilename, asksaveasfilename
-from tkinter import font
-from tkinter import simpledialog
+from tkinter import messagebox, simpledialog
 import os
 import json
 
@@ -12,251 +11,235 @@ APP_SETTINGS = {
     "font_color": "#FFFFFF" # White
 }
 
-class NotePad():
-    """class for notepad"""
+class NotePad:
+    """Class for a minimalist terminal-style text editor."""
     def __init__(self):
         
-        #--- Creating window for program
+        # --- Creating window for program
         self.window = tk.Tk()
-        self.window.title('Text editor')
-        self.window.rowconfigure(1, weight=1)
+        self.window.title('Text Editor')
+        
+        # Grid weight set to 0 now that the top button frame is gone
+        self.window.rowconfigure(0, weight=1) 
         self.window.columnconfigure(0, weight=1)
         self.window.configure(bg=APP_SETTINGS['bg_color'])
 
-        #--- Loads recent files
+        # --- Loads recent files
+        self.recent_files = []
         try:
-            with open('recent_files.json', 'r') as f:
+            if os.path.exists('recent_files.json'):
+                with open('recent_files.json', 'r') as f:
                     self.recent_files = json.load(f)
-        except FileNotFoundError:
-            self.recent_files = []
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
 
-        #--- Text edit parameters 
-        self.scrollbar = tk.Scrollbar(self.window)
-        self.text_edit = tk.Text(self.window,
-        font=(APP_SETTINGS['font_family'], APP_SETTINGS['font_size']),
-        bg=APP_SETTINGS['bg_color'], 
-        fg=APP_SETTINGS['font_color'],
-        insertbackground = APP_SETTINGS['font_color'],
+        # --- Initialize UI Menus
+        self.menu_bar()
 
-                    # --- Terminal specific additions ---
-        blockcursor=True,  # Changes the thin cursor line to a solid block
-        relief=tk.FLAT,    # Removes the default 3D sunken border around the text box
-        padx=10,           # Adds internal padding so text doesn't touch the window edge
-        pady=10,
-    
-        yscrollcommand=self.scrollbar.set
+        # --- Text edit parameters (Scrollbar completely removed)
+        self.text_edit = tk.Text(
+            self.window, 
+            undo=True, 
+            font=(APP_SETTINGS['font_family'], APP_SETTINGS['font_size']),
+            bg=APP_SETTINGS['bg_color'], 
+            fg=APP_SETTINGS['font_color'],
+            insertbackground=APP_SETTINGS['font_color'],
+            blockcursor=True,
+            relief=tk.FLAT,
+            padx=10,
+            pady=10,
+            borderwidth=0,         # Removes lingering default Tkinter borders
+            highlightthickness=0   # Removes focus borders
         )
 
-        self.scrollbar.config(command=self.text_edit.yview)
-        self.text_edit.grid(row=1, column=0, sticky='nsew')
-        self.scrollbar.grid(row=1, column=1, sticky='ns')
+        # Shifted to row 0 so it fills the whole window
+        self.text_edit.grid(row=0, column=0, sticky='nsew')
         self.filepath = None
-        self.menu_bar()
 
+        # --- Bindings
         self.window.bind('<Control-s>', lambda x: self.save_file())
         self.window.bind('<Control-o>', lambda x: self.open_file())
             
-        self.window.mainloop()
-
-    def menu_buttons(self):
-        frame = tk.Frame(self.window, relief=tk.FLAT, bd=2)
-        save_button = tk.Button(frame, text='Save', command= self.save_file)
-        open_button = tk.Button(frame, text='Open', command= self.open_file)
-        new_button = tk.Button(frame, text='New', command= self.new_file)
-        close_button = tk.Button(frame, text='Close', command= self.close_file)
-
-    #--- Layout for buttons
-        save_button.grid(row=0, column=0, padx=5, pady=5, sticky='ew')
-        open_button.grid(row=0, column=1, padx=5, sticky='ew')
-        new_button.grid(row=0, column=2, padx=5, sticky='ew')
-        close_button.grid(row=0, column=3, padx=5, sticky='ew')
-            
-        frame.grid(row=0, column=0, sticky='ew')
-
-        self.scrollbar.config(command=self.text_edit.yview)
-        self.text_edit.grid(row=1, column=0, sticky='nsew')
-        self.scrollbar.grid(row=1, column=1, sticky='ns')
-        self.filepath = None
-        self.menu_bar()
-
-        self.window.bind('<Control-s>', lambda x: self.save_file())
-        self.window.bind('<Control-o>', lambda x: self.open_file())
-            
-        
         self.window.mainloop()
 
     def menu_bar(self):
         self.menubar = tk.Menu(self.window)
 
-        self.menu_file = tk.Menu(self.menubar)
-        self.menu_edit = tk.Menu(self.menubar)
-        self.menubar.add_cascade(menu=self.menu_file, label='File')
-        self.menubar.add_cascade(menu=self.menu_edit, label='Edit')
-        self.menu_recent = tk.Menu(self.menu_file)
-        self.menu_file.add_cascade(menu=self.menu_recent, label='Open Recent')
-
-        self.menu_file.add_command(label='New', command= self.new_file)
-        self.menu_file.add_command(label='Open', command= self.open_file)
-        self.menu_file.add_command(label='Close', command= self.close_file)
-        self.menu_file.add_command(label='Save', command= self.save_file)
-        self.menu_file.add_command(label='Save As...', command= self.save_as)
+        # --- File Menu
+        self.menu_file = tk.Menu(self.menubar, tearoff=0)
+        self.menu_recent = tk.Menu(self.menu_file, tearoff=0)
         
-
-
-        for f in self.recent_files:
-            self.menu_recent.add_command(label=os.path.basename(f), command= lambda f=f: self.open_file(filepath=f))
-                    
-
+        self.menu_file.add_command(label='New', command=self.new_file)
+        self.menu_file.add_command(label='Open...', command=self.open_file)
+        self.menu_file.add_cascade(menu=self.menu_recent, label='Open Recent')
         self.menu_file.add_separator()
-        self.window.option_add('*tearOff', tk.FALSE) 
+        self.menu_file.add_command(label='Save', command=self.save_file)
+        self.menu_file.add_command(label='Save As...', command=self.save_as)
+        self.menu_file.add_command(label='Rename File', command=self.rename)
+        self.menu_file.add_separator()
+        self.menu_file.add_command(label='Close', command=self.close_file)
+        
+        self.menubar.add_cascade(menu=self.menu_file, label='File')
+
+        # --- Edit Menu (Fully populated)
+        self.menu_edit = tk.Menu(self.menubar, tearoff=0)
+        self.menu_edit.add_command(label="Undo", command=self.undo)
+        self.menu_edit.add_command(label="Redo", command=self.redo)
+        self.menu_edit.add_separator()
+        self.menu_edit.add_command(label="Cut", command=self.cut)
+        self.menu_edit.add_command(label="Copy", command=self.copy)
+        self.menu_edit.add_command(label="Paste", command=self.paste)
+        self.menu_edit.add_separator()
+        self.menu_edit.add_command(label="Select All", command=self.select_all)
+        self.menu_edit.add_command(label="Delete All", command=self.delete_all)
+        
+        self.menubar.add_cascade(menu=self.menu_edit, label='Edit')
+
+        self._refresh_recent_menu()
         self.window['menu'] = self.menubar
-        return self.menu_recent
 
+    def _refresh_recent_menu(self):
+        """Helper to clear and rebuild the recent files menu."""
+        self.menu_recent.delete(0, tk.END)
+        for f in self.recent_files:
+            self.menu_recent.add_command(label=os.path.basename(f), command=lambda path=f: self.open_file(filepath=path))
 
-    def make_tag(self):
-        current_tags = self.text_edit.tag_names()
-        if "bold" in current_tags:
-            self.weight = "bold"
-        else:
-            self.weight = "normal"
-
-        if "italic" in current_tags:
-            self.slant = "italic"
-        else:
-            self.slant = "roman"
-
-        if "underline" in current_tags:
-            self.underline = 1
-        else:
-            self.underline = 0
-
-        if "overstrike" in current_tags:
-            self.overstrike = 1
-        else:
-            self.overstrike = 0
-
-        self.big_font = tk.Font.Font(self.text_edit, self.text_edit.cget("font"))
-        self.big_font.configure(slant=self.slant, weight=self.weight, underline=self.underline, overstrike=self.overstrike, family="Liberation Mono", size=12)
-        self.text_edit.tag_config("BigTag", font=self.big_font, foreground="#000000", background="#FFFFFF")
-        if "BigTag" in current_tags:
-            self.text_edit.tag_remove("BigTag", 1.0, tk.END)
-        self.text_edit.tag_add("BigTag", 1.0, tk.END)
+    def update_recent_files(self, filepath):
+        if filepath in self.recent_files:
+            self.recent_files.remove(filepath)
+            
+        self.recent_files.insert(0, filepath)
+        if len(self.recent_files) > 5:
+            self.recent_files.pop() 
+    
+        with open('recent_files.json', 'w') as f:
+            json.dump(self.recent_files, f)
+            
+        self._refresh_recent_menu()
 
     def new_file(self):
-
         self.text_edit.delete('1.0', tk.END)
-        self.window.title('New File')
-        
+        self.filepath = None
+        self.window.title('New File - Text Editor')
 
     def close_file(self):
         self.window.destroy()
 
-        
-    def update_recent_files(self, filepath):
-        self.recent_files.append(filepath)
-        if len(self.recent_files) > 5:
-            self.recent_files.pop(0)
-    
-        with open('recent_files.json', 'w') as f:
-            json.dump(self.recent_files, f)
-        self.menu_recent.delete(0, tk.END)
-        for f in self.recent_files:
-            self.menu_recent.add_command(label=os.path.basename(f), command= lambda f=f: self.open_file(filepath=f))
-
-
-
-
     def open_file(self, filepath=None):
-
         if filepath is None:
-            filepath = askopenfilename(filetypes=[('Text Files', '.txt')])
+            filepath = askopenfilename(filetypes=[('Text Files', '*.txt'), ('All Files', '*.*')])
         if not filepath:
             return
+            
         self.filepath = filepath
         self.text_edit.delete(1.0, tk.END)
-        with open(self.filepath, 'r') as f:
-            content = f.read()
-            self.text_edit.insert(tk.END, content)
-        self.window.title(f'Open File: {self.filepath}')
-        self.update_recent_files(self.filepath)
-
+        
+        try:
+            with open(self.filepath, 'r') as f:
+                content = f.read()
+                self.text_edit.insert(tk.END, content)
+            self.window.title(f'{os.path.basename(self.filepath)} - Text Editor')
+            self.update_recent_files(self.filepath)
+        except Exception as e:
+            tk.messagebox.showerror("Error", f"Could not open file: {e}")
 
     def save_as(self):
-        self.filepath = asksaveasfilename(filetypes=[('Text Files', '.txt')])
+        filepath = asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[('Text Files', '*.txt'), ('All Files', '*.*')]
+        )
 
-        if not self.filepath:
+        if not filepath:
             return
-        
+            
+        self.filepath = filepath
         with open(self.filepath, 'w') as f:
-            self.content = self.text_edit.get(1.0, tk.END)
-            f.write(self.content)
-        self.window.title(f'Save File: {self.filepath}')
+            content = self.text_edit.get(1.0, tk.END)
+            f.write(content)
+            
+        self.window.title(f'{os.path.basename(self.filepath)} - Text Editor')
         self.update_recent_files(self.filepath)
-
 
     def save_file(self):
         if not self.filepath:
             self.save_as()
             return
 
-        if self.filepath is None: 
-                return
-        self.text2save = str(self.text_edit.get(1.0, tk.END)) 
+        content = self.text_edit.get(1.0, tk.END) 
         with open(self.filepath, 'w') as f:
-            f.write(self.text2save) 
-        self.new_name = ""
+            f.write(content) 
 
+    def rename(self):
+        if not self.filepath:
+            tk.messagebox.showwarning("Warning", "No file is currently open to rename.")
+            return
 
-
-    def rename(self, filepath=None):
-        if self.filepath == "":
-            self.open_file()
-
-        arr = self.filepath.split('/')
-        self.path = ""
-        for i in range(0 , len(arr) -1):
-            self.path = self.path + arr[i] + '/'
+        directory = os.path.dirname(self.filepath)
+        old_name = os.path.basename(self.filepath)
         
-        self.new_name = tk.simpledialog.askstring("Rename", "Enter new name")
-        os.rename(self.filepath , str(self.path) + str(self.new_name))
-        self.filepath = str(self.path) + str(self.new_name)
-        self.window.title(self.filepath + " - Script Editor")
+        new_name = tk.simpledialog.askstring("Rename", "Enter new name:", initialvalue=old_name)
+        if new_name:
+            new_filepath = os.path.join(directory, new_name)
+            try:
+                os.rename(self.filepath, new_filepath)
+                
+                if self.filepath in self.recent_files:
+                    self.recent_files.remove(self.filepath)
+                
+                self.filepath = new_filepath
+                self.window.title(f'{new_name} - Text Editor')
+                self.update_recent_files(self.filepath)
+            except Exception as e:
+                tk.messagebox.showerror("Error", f"Could not rename file: {e}")
 
-    # EDIT MENU METHODS
+    # --- EDIT MENU METHODS ---
 
     def cut(self, event=None):
-        self.window.clipboard_clear()
-        self.text_edit.clipboard_append(string=self.text_edit.selection_get())
-        #index of the first and yhe last letter of our selection.
-        self.text_edit.delete(index1=tk.SEL_FIRST, index2=tk.SEL_LAST)
-
+        try:
+            self.copy()
+            self.delete()
+        except tk.TclError:
+            pass
 
     def copy(self, event=None):
-        # first clear the previous text on the clipboard.
-        print (self.text_edit.index(tk.SEL_FIRST))
-        print (self.text_edit.index(tk.SEL_LAST))
-        self.window.clipboard_clear()
-        self.text_edit.clipboard_append(string=self.text_edit.selection_get())
+        try:
+            self.window.clipboard_clear()
+            self.window.clipboard_append(self.text_edit.selection_get())
+        except tk.TclError:
+            pass 
 
     def paste(self, event=None):
-        # get gives everyting from the clipboard and paste it on the current cursor position
-        # it does'nt removes it from the clipboard.
-        self.text_edit.insert(tk.INSERT, self.window.clipboard_get())
+        try:
+            self.text_edit.insert(tk.INSERT, self.window.clipboard_get())
+        except tk.TclError:
+            pass 
 
     def delete(self):
-        self.text_edit.delete(index1=tk.SEL_FIRST, index2=tk.SEL_LAST)
+        try:
+            self.text_edit.delete(tk.SEL_FIRST, tk.SEL_LAST)
+        except tk.TclError:
+            pass
 
-    def undo(self):
-        self.window.edit_undo()
+    def undo(self, event=None):
+        try:
+            self.text_edit.edit_undo()
+        except tk.TclError:
+            pass 
 
-    def redo(self):
-        self.window.edit_redo()
+    def redo(self, event=None):
+        try:
+            self.text_edit.edit_redo()
+        except tk.TclError:
+            pass 
 
     def select_all(self, event=None):
         self.text_edit.tag_add(tk.SEL, "1.0", tk.END)
+        self.text_edit.mark_set(tk.INSERT, "1.0")
+        self.text_edit.see(tk.INSERT)
+        return 'break' 
 
     def delete_all(self):
         self.text_edit.delete(1.0, tk.END)
 
-
-app = NotePad()
+if __name__ == "__main__":
+    app = NotePad()
